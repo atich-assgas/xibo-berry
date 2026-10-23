@@ -1,5 +1,17 @@
 # Operação DHCP
 
+## Automação planejada
+
+O [plano da CLI](../PLANO-FLASH-RASPBERRIES.md) integra a entrada dos Berries
+na rede ao fluxo de flash e deploy. A preparação é separada da aplicação:
+descobrir o MAC Wi-Fi real, obter a configuração atual, preparar a reserva,
+validar e revisar o diff. Só então pedir confirmação para aplicar e reiniciar.
+A CLI não foi implementada; os procedimentos manuais abaixo continuam válidos.
+Validar também IP efetivo, rota Wi-Fi, DNS, HTTPS, CMS e SSH direto ou via salto.
+Não presumir que uma reserva libere Internet ou comunicação entre VLANs.
+
+## Repositório de infraestrutura
+
 Os artefatos de infraestrutura permanecem no repositório anterior:
 
 `C:\Users\Administrador\Desktop\projetos\ti`

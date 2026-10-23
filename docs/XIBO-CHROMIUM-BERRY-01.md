@@ -3,6 +3,12 @@
 Registro operacional do piloto realizado em 19/10/2026. Não contém senhas,
 chave de conexão do CMS nem conteúdo de `.env`.
 
+O [plano da CLI](../PLANO-FLASH-RASPBERRIES.md) amplia o rollout de novas placas:
+flash, identificação, reserva Wi-Fi, aprovação DHCP, renovação e validação de
+rede antecedem o deploy. O piloto histórico não é prova de que uma nova placa
+já está liberada na rede. A CLI ainda não está implementada e os registros
+de funcionamento abaixo não substituem a homologação de cada dispositivo.
+
 ## Código integrado no repositório
 
 A partir da reorganização de 21/10/2026, o código fica em

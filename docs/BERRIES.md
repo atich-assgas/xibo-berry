@@ -1,5 +1,10 @@
 # Berries
 
+Os endereços abaixo são registros do inventário; IPs Ethernet temporários
+devem ser confirmados antes do uso. O [plano da CLI](../PLANO-FLASH-RASPBERRIES.md)
+prevê atualizar apenas o dispositivo identificado e verificado, sem copiar
+MACs do histórico ou marcar conectividade como aprovada apenas pela reserva.
+
 Inventário dos Raspberry Pis. Como a rede Wi-Fi dos equipamentos não aceita
 SSH diretamente do computador local, use o servidor DHCP como salto SSH.
 

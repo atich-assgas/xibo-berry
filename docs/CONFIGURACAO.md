@@ -1,5 +1,10 @@
 # Configuração privada
 
+O [plano da CLI](../PLANO-FLASH-RASPBERRIES.md) prevê flash, rede e deploy no
+mesmo fluxo, com confirmações independentes para apagar cartão e aplicar DHCP.
+Novas variáveis e o adaptador de credenciais estão apenas planejados; não
+foram acrescentados ao `.env` ou às ferramentas de infraestrutura nesta etapa.
+
 O único arquivo de variáveis do operador é `.env`, na raiz do projeto.
 O único modelo é `.example.env`; seus valores são vazios. Em instalação
 nova, copie o modelo e preencha o arquivo privado. Não sobrescreva o `.env`

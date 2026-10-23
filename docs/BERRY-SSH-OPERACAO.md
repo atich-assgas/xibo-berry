@@ -3,6 +3,12 @@
 Procedimento curto para acessar os Berries pelo Wi-Fi usando o servidor DHCP
 como salto e para recuperar o acesso pelo cabo quando necessário.
 
+O [plano da CLI](../PLANO-FLASH-RASPBERRIES.md) prevê automatizar esse diagnóstico
+após o flash: acesso Ethernet, identidade da placa, reserva do MAC Wi-Fi,
+renovação por UUID e teste de SSH pelo caminho permitido. Não desabilitar
+verificação de host key nem remover `known_hosts` automaticamente.
+Essa automação ainda não foi implementada.
+
 ## Separação dos ambientes
 
 - PowerShell local: iniciar o SSH com `ProxyJump`.

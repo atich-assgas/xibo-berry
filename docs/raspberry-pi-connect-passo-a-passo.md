@@ -3,7 +3,16 @@
 Este documento registra o procedimento que funcionou para acessar o Raspberry Pi
 sem monitor ou adaptador micro-HDMI.
 
-## Resultado final
+## Histórico e automação planejada
+
+Os IPs e resultados abaixo pertencem às sessões registradas, não comprovam
+o estado atual de uma placa. Para uma nova instalação, seguir o
+[plano da CLI](../PLANO-FLASH-RASPBERRIES.md), que inclui entrada na rede:
+identificação, reserva Wi-Fi, aprovação DHCP, renovação e validação real de
+Internet, CMS e SSH antes do player. A CLI ainda não está implementada.
+Vínculo Pi Connect continua independente e pode exigir confirmação no navegador.
+
+## Resultado histórico
 
 - Hostname: `berry-01`
 - Usuário Linux: `berry`
@@ -211,10 +220,12 @@ eth0:  e4:5f:01:35:b8:2b
 wlan0: e4:5f:01:35:b8:2d
 ```
 
-No estado atual, a reserva fixa `172.20.111.237` do `berry-01` está destinada ao
-Wi-Fi e associada ao MAC `e4:5f:01:35:b8:2b`. A reserva fixa `172.20.111.238`
-do `berry-02` está destinada ao Wi-Fi e associada ao MAC `e4:5f:01:20:11:2a`.
-Confirme sempre a interface e a VLAN antes de alterar uma reserva.
+O registro anterior atribuía à reserva Wi-Fi do Berry 01 o MAC Ethernet
+`e4:5f:01:35:b8:2b`, em contradição com a interface Wi-Fi identificada acima,
+`e4:5f:01:35:b8:2d`. Não usar esse histórico como confirmação do servidor.
+Consultar o inventário em `BERRIES.md`, ler os MACs da própria placa e obter
+o `dhcpd.conf` atual antes de preparar qualquer alteração de reserva.
+Esta correção documental não consultou nem alterou o DHCP de produção.
 
 Uma reserva DHCP apenas fixa o IP; ela não substitui a autenticação de portal
 cativo nem libera automaticamente a saída para a Internet.
