@@ -1,0 +1,12 @@
+# Build artifacts
+_rpmbuild/
+_debbuild/
+dist/
+deb-pkg/
+*.rpm
+*.deb
+
+# Node.js dependencies (installed during build)
+node_modules/
+*.env
+tests/.env-test-*/

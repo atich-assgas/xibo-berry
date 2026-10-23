@@ -1,0 +1,39 @@
+{
+  "cmsUrl": "",
+  "cmsKey": "",
+  "displayName": "",
+
+  "serverPort": 8766,
+  "browser": "chromium",
+  "extraBrowserFlags": "",
+
+  "allowShellCommands": false,
+
+  "kioskMode": true,
+  "fullscreen": true,
+  "hideMouseCursor": true,
+  "preventSleep": true,
+  "width": 1920,
+  "height": 1080,
+
+  "logLevel": "",
+  "relaxSslCerts": true,
+  "transport": "auto",
+  "googleGeoApiKey": "",
+
+  "debug": {
+    "consoleLogs": false
+  },
+
+  "controls": {
+    "keyboard": {
+      "debugOverlays": false,
+      "setupKey": false,
+      "playbackControl": false,
+      "videoControls": false
+    },
+    "mouse": {
+      "statusBarOnHover": false
+    }
+  }
+}

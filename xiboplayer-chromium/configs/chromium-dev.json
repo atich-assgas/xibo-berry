@@ -1,0 +1,32 @@
+{
+  "cmsUrl": "{{XIBO_CMS_URL}}",
+  "cmsKey": "{{XIBO_CMS_KEY}}",
+  "apiClientId": "{{XIBO_API_CLIENT_ID}}",
+  "apiClientSecret": "{{XIBO_API_CLIENT_SECRET}}",
+  "displayName": "{{DISPLAY_NAME:chromium-dev}}",
+  "serverPort": {{PORT:8766}},
+  "kioskMode": false,
+  
+  "fullscreen": false,
+  "hideMouseCursor": false,
+  "preventSleep": false,
+  "width": 1920,
+  "height": 1080,
+  "logLevel": "debug",
+  "relaxSslCerts": true,
+  "transport": "auto",
+  "debug": {
+    "consoleLogs": true
+  },
+  "controls": {
+    "keyboard": {
+      "debugOverlays": true,
+      "setupKey": true,
+      "playbackControl": true,
+      "videoControls": true
+    },
+    "mouse": {
+      "statusBarOnHover": true
+    }
+  }
+}

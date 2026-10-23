@@ -1,0 +1,28 @@
+[Unit]
+Description=Xibo Digital Signage Player (Chromium Kiosk)
+Documentation=https://github.com/xibo-players/xiboplayer-chromium
+After=graphical-session.target
+Wants=graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/xiboplayer-chromium
+ExecStop=/usr/bin/node /usr/libexec/xiboplayer-chromium/stop-player.cjs
+ExecStopPost=/usr/bin/node /usr/libexec/xiboplayer-chromium/stop-player.cjs
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+TimeoutStopFailureMode=terminate
+KillMode=control-group
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
+LimitCORE=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xiboplayer-chromium
+
+[Install]
+WantedBy=graphical-session.target

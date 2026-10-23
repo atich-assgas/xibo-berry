@@ -1,0 +1,96 @@
+name: Build Chromium Kiosk
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Run bats tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Install dependencies
+        run: sudo apt-get install -y bats jq
+      - name: Run tests
+        run: bats tests/launch-kiosk.bats
+      - name: Run player stop regression tests
+        run: node --test tests/*.test.cjs
+
+  wait-for-pwa:
+    name: Wait for PWA package on npm
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for @xiboplayer/pwa on npm
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          LATEST=$(npm view "@xiboplayer/pwa" version 2>/dev/null || echo "0.0.0")
+          if [ "$LATEST" = "$VERSION" ]; then
+            echo "Already on npm"
+            exit 0
+          fi
+          echo "Waiting for @xiboplayer/pwa@${VERSION} (current: ${LATEST})..."
+          for i in $(seq 1 60); do
+            if npm view "@xiboplayer/pwa@${VERSION}" version 2>/dev/null; then
+              echo "Found on npm after ~$((i * 10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::@xiboplayer/pwa@${VERSION} not published after 10 min"
+          exit 1
+
+  rpm:
+    needs: [test, wait-for-pwa]
+    if: always() && needs.test.result == 'success' && (needs.wait-for-pwa.result == 'success' || needs.wait-for-pwa.result == 'skipped')
+    uses: xibo-players/.github/.github/workflows/build-rpm.yml@99b65f33c5227c49a8f093cb776894ef82e4d77e  # main
+    with:
+      package-name: xiboplayer-chromium
+      rpm-spec: 'xiboplayer-chromium.spec'
+      rpm-script: 'build-rpm.sh'
+      fedora-matrix: '["43"]'
+      # Package is BuildArch: noarch — one build produces a .noarch.rpm
+      # that works on any architecture. Building on both x86_64 and aarch64
+      # produces two artifacts with the same filename; download-artifact's
+      # merge-multiple step collides them and corrupts the payload during
+      # overwrite, breaking signing.
+      arch-matrix: '["x86_64"]'
+      gpg-sign: true
+      publish-to-repo: true
+    secrets: inherit
+
+  deb:
+    needs: [test, wait-for-pwa]
+    if: always() && needs.test.result == 'success' && (needs.wait-for-pwa.result == 'success' || needs.wait-for-pwa.result == 'skipped')
+    uses: xibo-players/.github/.github/workflows/build-deb.yml@99b65f33c5227c49a8f093cb776894ef82e4d77e  # main
+    with:
+      package-name: xiboplayer-chromium
+      deb-script: 'build-deb.sh'
+      distro-matrix: '["ubuntu:24.04", "debian:trixie"]'
+      arch-matrix: '["amd64", "arm64"]'
+      gpg-sign: true
+      publish-to-repo: true
+      extra-build-deps: 'nodejs npm'
+    secrets: inherit
+
+  release:
+    needs: [rpm, deb]
+    uses: xibo-players/.github/.github/workflows/create-release.yml@5c3b3699cd05c12bb3ec76e5d1d317d539dd69b4  # main
+    with:
+      package-name: xiboplayer-chromium
+      description: 'Chromium kiosk-mode Xibo digital signage player.'
+
