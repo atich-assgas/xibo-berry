@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local credentials
+.env
+*.env
+!.example.env
+.playwright-mcp/
+*.edit
+/xibo/config.env
+/xibo/shared/
+/config.env
+/shared/
+/shared.backup-*/
