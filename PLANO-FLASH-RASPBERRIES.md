@@ -1,5 +1,14 @@
 # Automação de flash e provisionamento dos Berries — Implementation Plan
 
+Este é o material consolidado de origem. A organização formal para execução
+SDD/TDD está nos rascunhos abaixo, que aguardam aprovação antes de implementar:
+
+- [Spec](docs/superpowers/specs/2026-10-23-xibo-berry-cli-design.md).
+- [Plano SDD/TDD](docs/superpowers/plans/2026-10-23-xibo-berry-cli-sdd-tdd.md).
+
+Os contratos refinados de sudo, simulação, CMS inicial e retomada estão na spec.
+Em caso de conflito, revisar o material de origem contra a spec aprovada.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:executing-plans para executar este plano tarefa por tarefa.
 > Use as caixas de seleção para acompanhar o progresso.
@@ -27,7 +36,13 @@ para revisão, não autorização para gravar discos ou alterar infraestrutura.
 - Usar imagem oficial com desktop: o player atual depende de sessão gráfica.
 - Fixar versão, URL e SHA256 da imagem depois de testar um Raspberry reserva.
 - Reutilizar a imagem baixada e verificada, não baixar novamente por cartão.
-- Personalizar hostname, usuário e chave pública SSH por dispositivo.
+- Personalizar hostname, usuário e conjunto de chaves públicas por dispositivo.
+- Usar uma chave privada individual por pessoa, nunca uma privada compartilhada.
+- Receber nome e chave na CLI ou no cadastro, sem exigir escolhas na GUI.
+- Reescrever os scripts de diagnóstico para usar evidências estruturadas e
+  a identidade definida no flash, com fluxo curto e retomável para o operador.
+- Entregar dependências, serviços e verificações reproduzíveis a outro operador
+  ou agente de IA, sem depender desta máquina ou do histórico da conversa.
 - Usar o `.env` existente como única fonte privada de variáveis do operador.
 - Para operações de infraestrutura, usar as credenciais autorizadas de `ti`,
   sem copiar, renomear ou sobrescrever seu `.env` independente.
@@ -35,6 +50,7 @@ para revisão, não autorização para gravar discos ou alterar infraestrutura.
 - Primeiro acessar pelo cabo; usar o MAC real da interface Wi-Fi na reserva.
 - Instalar o player a partir de uma versão identificada do código deste repo.
 - Tratar Pi Connect e autorização do display como etapas verificáveis separadas.
+- Encerrar com guias reescritos e numerados para instalação do zero e expansão.
 - Não executar este plano automaticamente após sua criação.
 
 Alternativas consideradas:
@@ -65,6 +81,7 @@ Essas são escolhas propostas pelo agente, ainda sujeitas à revisão do usuári
 - Preservar proxy/PWA em `0.7.15` e instalar pelo `package-lock.json` com `npm ci`.
 - Só considerar pronto após teste visual, parada, reinício e reboot.
 - Não criar commits, publicar artefatos ou iniciar rollout sem solicitação.
+- Simplificar a experiência, não os controles de disco, identidade e DHCP.
 
 ## Review Focus
 
@@ -93,9 +110,18 @@ Cada condição deve ter teste na tarefa responsável, além da homologação f�
 - `scripts/network/NetworkBerry.psm1`: identidade da placa, conexão e testes.
 - `scripts/dhcp/DhcpEnrollment.psm1`: adaptador para o fluxo seguro de `ti`.
 - `scripts/flash/BerryWorkflow.psm1`: etapas e retomada sem repetir flash.
+- `scripts/setup/dependencies.lock.json`: dependências e fontes homologadas.
+- `scripts/setup/doctor-berry.ps1`: preflight e relatório de pré-requisitos.
+- `scripts/setup/install-prerequisites.ps1`: instalação local autorizada.
+- `scripts/common/Configuration.psm1`: leitura privada compartilhada do `.env`.
+- `scripts/access/AuthorizedKeys.psm1`: validação e gestão de chaves públicas.
+- `ssh/authorized-keys/`: chaves públicas aprovadas, sem material privado.
+- `scripts/dhcp/listar-conexoes-dhcp.ps1`: reescrever consulta com filtros exatos.
+- `scripts/dhcp/atualizar-estados-berries.ps1`: reescrever relatório por evidência.
 - `tests/flash/FlashBerry.Tests.ps1`: testes Windows sem gravação física.
 - `tests/network/NetworkBerry.Tests.ps1`: conexões e diagnósticos simulados.
 - `tests/dhcp/DhcpEnrollment.Tests.ps1`: fixtures DHCP, sem servidor real.
+- `tests/setup/Dependencies.Tests.ps1`: versões, descoberta e instalação opt-in.
 - `tests/provision/`: testes Linux isolados, com dados fictícios.
 - `docs/FLASH-CLI.md`: uso, recuperação e checklist do operador.
 - `docs/REDE-CLI.md`: cadastro na rede, aprovação DHCP e diagnóstico.
@@ -106,8 +132,13 @@ Não mover o código de `xiboplayer-chromium/` nem reabrir a organização do re
 ## Contratos de entrada e saída
 
 O cadastro local de dispositivos será JSON, com `Hostname`, `Username`,
-`DisplayName` e `PublicKeyPath`. Não conterá senhas, IP reservado inventado ou
+`DisplayName` e `PublicKeyPaths`. Não conterá senhas, IP reservado inventado ou
 identidade de outro player. O arquivo público de exemplo terá marcadores.
+O hostname é o nome Linux escolhido para o Berry, não o usuário SSH nem o nome
+do layout. `DisplayName` pode acompanhar o hostname, mas continua um campo
+distinto. `PublicKeyPaths` é uma lista de arquivos públicos `.pub` aprovados,
+um por pessoa/identidade autorizada; cada privada fica no PC do seu titular
+ou no agente SSH. Exigir ao menos uma chave válida antes de gravar.
 Após o primeiro contato, registrar separadamente `EthernetMac`, `WifiMac`,
 `EthernetIp`, `WifiIp`, serial da placa e fingerprint SSH confirmado.
 Esses campos são evidências coletadas, não valores inventados no modelo.
@@ -135,13 +166,89 @@ Essa chamada apenas simula. A gravação acrescenta `-Execute` e
 número de disco real. Autologin gráfico exige a opção separada
 `-EnableDesktopAutologin`, com explicação de seu impacto de segurança.
 
+O nome e a chave também podem ser informados diretamente:
+
+```powershell
+.\scripts\flash\flash-berry.ps1 -Hostname NOME_BERRY `
+  -SshPublicKeyPath CAMINHO_CHAVE_PUB -DiskNumber NUMERO
+```
+
+Campos fornecidos na CLI preenchem o cadastro dessa execução. Se contradisserem
+um cadastro já existente para a mesma placa, pedir confirmação e não alterar
+o cadastro silenciosamente. Se faltarem nome ou chave, solicitar somente essas
+entradas; não selecionar automaticamente a primeira chave encontrada.
+Exibir nome, usuário e fingerprint da chave pública no resumo de confirmação.
+Validar formato, existência e unicidade do hostname e o conteúdo público da
+chave, não apenas sua extensão. Não enviar a chave privada ao Imager ou ao Pi.
+O gerador escreve essas escolhas no mecanismo de customização homologado:
+não há necessidade de repeti-las na interface gráfica do Raspberry Pi Imager.
+
+Na reconexão, usar a identidade privada correspondente por agente SSH ou caminho
+local selecionado, preservando prompts de passphrase. Distinguir a chave do
+operador autorizada para login da host key gerada pelo Raspberry.
+
+### Acesso SSH por pessoa e distribuição do projeto
+
+- Cada pessoa gera e protege seu próprio par, preferencialmente com passphrase.
+  O procedimento deve explicar como obter a pública sem revelar a privada.
+- A CLI aceita uma lista em `-SshPublicKeyPath`, valida cada pública e grava
+  o conjunto aprovado em `authorized_keys` da conta de manutenção do Berry.
+  Mostrar todos os fingerprints selecionados, não somente o do operador atual.
+- Públicas aprovadas podem acompanhar o projeto em `ssh/authorized-keys/`;
+  não incluir privadas, passphrases ou uma privada codificada em base64 no `.env`.
+  Validar o conteúdo real de cada arquivo, não confiar na extensão `.pub`.
+- Adicionar ou revogar chaves em Berries existentes exige ação explícita, diff
+  por fingerprint e confirmação. Não sobrescrever chaves desconhecidas nem
+  remover o último acesso funcional sem uma alternativa testada.
+- A conta Linux de manutenção pode continuar sendo `berry` neste primeiro
+  fluxo; isso não cria contas individuais nem rastreabilidade completa por
+  pessoa. Contas individuais e integração SSSD/AD/LDAP ficam fora deste lote.
+- Não copiar a configuração de autenticação institucional do servidor DHCP.
+  O acesso dele por SSSD/grupo é independente do acesso aos Berries.
+- Preparar ZIP por lista de arquivos permitidos, não compactar a pasta inteira.
+  Excluir `.env`, privadas, `.git`, `shared/`, backups e payloads temporários;
+  incluir somente código, documentação, modelos vazios e públicas aprovadas.
+  O `.gitignore` não protege uma compactação feita pelo Explorador do Windows.
+- Credenciais necessárias ao operador são entregues separadamente por canal
+  seguro e com escopo adequado. Receber o ZIP não concede acesso ao DHCP ou CMS.
+- Validar com duas identidades: ambas acessam com suas privadas distintas;
+  revogar uma não impede a outra, e uma chave não cadastrada é recusada.
+
+### Padrão de nomes dos Berries
+
+Todos os Berries deste projeto são destinados a televisões. Adotar o padrão
+já usado no `dhcpd.conf`: `berry-tv-campus-NN`, com prefixo literal fixo.
+
+- Consulta somente leitura ao servidor em 23/10/2026 confirmou as reservas
+  `berry-tv-campus-01` e `berry-tv-campus-02`. Esses nomes não são legados nem
+  precisam migrar para outro formato.
+- `NN` é um sequencial positivo, com pelo menos dois dígitos: `01`, `02`,
+  `03` e assim por diante; acima de `99`, usar `100`, sem truncar ou reutilizar.
+- O próximo candidato após os registros consultados seria
+  `berry-tv-campus-03`, não uma reserva criada ou disponibilidade garantida.
+  Consultar novamente configuração e inventário antes de confirmar cada nome.
+- Não acrescentar campus abreviado, prédio, setor ou local ao hostname.
+  A localização física da TV é um campo separado do inventário e pode compor
+  uma descrição amigável, sem mudar a identidade da placa.
+- A CLI propõe o próximo sequencial disponível e mostra o resultado ao
+  operador. O usuário pode informar um sequencial válido, sujeito à verificação
+  de colisões; o arquivo local sozinho não comprova disponibilidade.
+- Usar o hostname como nome da reserva DHCP e `DisplayName` inicial, mantendo
+  usuário SSH, nome do layout, serial e MAC como campos distintos.
+- Validar prefixo exato, sequência positiva, unicidade e limite de 63 caracteres.
+  Não aceitar nomes novos como `berry1`, `berry-01` ou `raspberrypi`.
+- Preservar nomes e reservas existentes. Não renomear placas, reservas ou
+  displays em operação automaticamente; qualquer alteração exige autorização.
+
 A mesma entrada recebe `-Stage`: `Flash`, `DiscoverNetwork`, `PrepareDhcp`,
 `ApplyDhcp`, `VerifyNetwork`, `DeployPlayer` ou `All`.
 Recebe também `-RunId` para retomada e `-InfrastructureRepo` para localizar
 o repositório `ti`; não duplicar as ferramentas de infraestrutura em `berry`.
 Sem `-Execute`, apenas simular. `-ConfirmErase` é exclusivo do flash e não
-vale como aprovação DHCP. `All` deve parar em `AwaitingDhcpApproval` e exigir
-uma chamada separada de `ApplyDhcp` com confirmação humana após validação.
+vale como aprovação DHCP. Com mudança a aplicar, `All` deve parar em
+`AwaitingDhcpApproval` e exigir chamada separada de `ApplyDhcp` com confirmação
+humana após validação. Reserva correta é no-op; uma retomada após aplicação
+aprovada revalida a rede sem regravar cartão ou reaplicar a mesma reserva.
 
 Estados propostos: `Planned`, `FlashVerified`, `AwaitingFirstBoot`,
 `IdentityVerified`, `DhcpPrepared`, `AwaitingDhcpApproval`, `DhcpApplied`,
@@ -152,6 +259,75 @@ credenciais, diff completo do servidor ou arquivo DHCP de produção.
 
 Saída pública: identificador da execução, etapa, imagem/hash, identidade do
 destino e resultado. Nunca incluir payload privado ou valores de credenciais.
+
+## Tarefa 0: dependências e serviços reproduzíveis
+
+**Arquivos:** manifesto em `scripts/setup/`, preflight, instalador opt-in,
+testes de setup e a etapa documental de pré-requisitos.
+
+**Interfaces:** `doctor-berry.ps1 -Profile PERFIL` aceita `Operator`, `Berry`,
+`Infrastructure` ou `Tests`; perfis remotos exigem conexão identificada.
+Retorna por item `Name`, `Role`, `Required`, `ExpectedVersion`,
+`DetectedVersion`, `Source`, `Status` e `Remediation`, sem segredos.
+O preflight não instala, atualiza, reinicia nem libera tráfego.
+
+### Inventário obrigatório a consolidar
+
+- Host operador: PowerShell 7, Git, OpenSSH Client, ferramentas Storage/CIM
+  usadas na descoberta de disco e Raspberry Pi Imager CLI.
+- Módulos PowerShell: `Posh-SSH` com cmdlets e parâmetros compatíveis com
+  este ambiente; `Pester` 5 no perfil de testes. Registrar versões testadas.
+- CMS: Docker Engine/Desktop e Compose v2; serviços `cms-web`, `cms-db`,
+  `cms-xmr`, `cms-memcached` e `cms-quickchart`, com volumes e portas reais.
+  Conferir imagens existentes: CMS `release-4.5.3`, MySQL `8.4`, XMR `1.3`,
+  `memcached:alpine` e QuickChart sem tag explícita. Resolver e registrar
+  digests homologados; não alegar reprodutibilidade com tags mutáveis apenas.
+- Serviços internos da imagem CMS: identificar Apache/PHP, suporte X-Sendfile,
+  tarefas agendadas e demais processos exigidos pela imagem em uso. Não os
+  instalar separadamente no Windows; documentar o que o container já fornece.
+- Berry: imagem desktop arm64, Bash, NetworkManager/`nmcli`, `iproute2`,
+  resolução DNS, OpenSSH Server, systemd, sessão gráfica Wayland/labwc e seu
+  gerenciador de login, Chromium, Node.js, npm, `jq`, `curl`, Git e certificados.
+  Registrar o pacote que fornece cada comando e o que já vem na imagem.
+- Player: launcher, servidor HTTP/proxy local, helper de parada e unidade
+  `berry-xiboplayer.service`. Proxy e PWA em `0.7.15`, lockfile e dependências
+  transitivas instalados por `npm ci`; registrar porta e dependência da sessão.
+- Infraestrutura: OpenSSH e `isc-dhcp-server` já administrados em `ti`, acesso
+  sudo interativo, formatador `iscdhcp` e validador `dhcpd -t`, inclusive os
+  includes requeridos. Não copiar chaves/includes de produção para este repo.
+- Opcionais/diagnóstico: Pi Connect, `kmsprint`, `vcgencmd`, `grim`, ferramentas
+  X11 ou `unclutter` citadas pelo launcher; indicar quando se aplicam a Wayland
+  ou X11 e não torná-las obrigatórias sem necessidade do caminho escolhido.
+- Testes/build: Node test runner, Pester, Bash, Bats, jq e Markdownlint;
+  para gerar DEB/RPM, ferramentas próprias e bibliotecas `scripts/packaging/`
+  ausentes da tag clonada, obtidas de fonte/versionamento verificáveis.
+  GitHub CLI e automação de navegador são opcionais, não requisitos do player.
+
+### Critérios e implementação do inventário
+
+- [ ] Percorrer scripts, unidades, Compose, manifestos/lockfiles, guias locais
+  e materiais upstream realmente usados. Mapear cada dependência à fonte e
+  classificar como runtime, setup, infraestrutura existente, teste ou opcional.
+- [ ] Não instalar tudo que é citado indiscriminadamente. Recursos de FOG, AD,
+  PXE ou outros exemplos sem relação com este fluxo ficam fora, com justificativa.
+- [ ] Registrar ambiente, arquitetura, versão/digest homologado, origem oficial,
+  comando de instalação, detecção, arquivos, usuário e privilégio necessário.
+  Não inventar versões ausentes; resolver e homologar antes de fechar o lock.
+- [ ] Inventariar também serviços: unidade/container, escopo sistema/usuário,
+  usuário executor, portas/fluxos de rede, dependências, persistência e comandos
+  de start, stop, enable, verificação e recuperação. Não imprimir configurações
+  privadas nem habilitar serviços remotos implicitamente.
+- [ ] Testar `DetectMissingDependency`, `RejectIncompatiblePoshSsh`,
+  `DoctorNeverMutates`, `OptionalToolDoesNotBlockRuntime` e
+  `InstallRequiresExplicitConsent`, com falha antes da implementação.
+- [ ] Implementar preflight e instalação local opt-in, com escopo/versões
+  explícitos. Instalação em Raspberry pertence ao bootstrap; mudanças no
+  servidor DHCP continuam sob aprovação própria, não no instalador do host.
+- [ ] Documentar licenças, acesso aos repositórios privados e dependências de
+  Internet. Apontar limitações de disponibilidade APT/npm; registrar a baseline
+  não significa que uma reconstrução futura seja idêntica byte a byte.
+- [ ] Testar em perfil limpo de operador/VM e ambiente Linux apropriado, sem
+  aproveitar silenciosamente ferramentas já presentes nesta máquina.
 
 ## Tarefa 1: descoberta e bloqueios de gravação
 
@@ -206,6 +382,18 @@ retorna caminhos de arquivos privados e um resumo público sem valores secretos.
 - [ ] Confirmar falhas com dados fictícios; testar o script gerado em Linux
   isolado, verificando resultado, não apenas procurando trechos no texto.
 - [ ] Validar hostname, usuário, chave pública e SSID antes de gerar arquivos.
+- [ ] Testar `SelectedHostnameSurvivesFirstBoot`, `SelectedKeyAllowsLogin`,
+  `PrivateKeyNeverLeavesOperator` e `MissingNameOrKeyRequestsInput`.
+  Demonstrar que não é preciso configurar nome e chave novamente na GUI.
+- [ ] Testar `TwoPeopleUseDistinctKeys`, `UnknownKeyIsRejected`,
+  `PrivateKeyDisguisedAsPubIsRejected` e `EmptyAuthorizedKeySetIsRejected`.
+- [ ] Implementar a gestão em `scripts/access/AuthorizedKeys.psm1`, com testes
+  em `tests/access/AuthorizedKeys.Tests.ps1`; testar adição sem sobrescrever
+  outras públicas e revogação sem remover o último acesso confirmado.
+- [ ] Testar `RejectGenericHostname`, `RejectDuplicateHostname`,
+  `RejectHostnameLongerThan63`, `SuggestNextTvSequence`,
+  `RejectLocationInHostname`, `SequenceAbove99IsNotTruncated` e
+  `ExistingDhcpNameIsNotAutomaticallyRenamed`.
 - [ ] Fazer prova de compatibilidade da imagem selecionada: usar
   `--first-run-script` ou cloud-init apenas se suportado pelo conjunto testado.
   Não presumir que flags existentes no código upstream funcionam na versão local.
@@ -243,6 +431,9 @@ o Imager somente após nova validação do destino e devolve `ExitCode`,
 ## Tarefa 5: primeiro acesso, identidade e descoberta de rede
 
 **Arquivos:** `NetworkBerry.psm1`, `BerryWorkflow.psm1` e testes de rede.
+Reescrever também os dois scripts existentes em `scripts/dhcp/`, mantendo
+suas consultas somente leitura e os parâmetros públicos ainda documentados.
+Eles serão consumidores dos mesmos módulos, não implementações divergentes.
 
 **Interfaces:** `Get-BerryIdentity($Connection)` retorna serial, hostname,
 interfaces, MACs, endereços, fingerprint SSH e UUID do perfil Wi-Fi.
@@ -251,6 +442,29 @@ sem desabilitar verificação de identidade SSH.
 
 - [ ] Testar `DistinguishTwoLeases`, `RejectWrongBoard`, `RejectMacMismatch`,
   `RejectUnverifiedHostKey` e `ResumeWithoutReflashing` antes da implementação.
+- [ ] Revisar parsers e comandos atuais: retirar leitura duplicada do `.env`,
+  defaults de hostname antigos e buscas amplas que misturam equipamentos.
+  Filtrar por hostname validado e MAC exato, com escaping antes de enviar shell.
+- [ ] Retornar objetos/JSON estruturados para a CLI, com resumo humano separado:
+  identidade, interface, IP, origem da evidência, horário e erro categorizado.
+  Não usar apenas `Write-Host`, texto livre ou ausência de erro como diagnóstico.
+- [ ] Distinguir lease ativo, expirado e histórico de reserva configurada.
+  Tratar logs rotacionados, entradas incompletas, timeout e permissões ausentes;
+  não transformar falta de leitura em ausência do dispositivo.
+- [ ] Usar hostname, usuário, fingerprint público e `RunId` gerados no flash
+  como ponto de partida, em vez de pedir repetidamente dados já confirmados.
+  Dados previstos não substituem a leitura do MAC e da identidade na placa.
+- [ ] Executar uma sequência curta e determinística: acesso inicial, identidade,
+  associação, lease/IP, rota, DNS, HTTPS, CMS e SSH pelo caminho permitido.
+  Retornar a camada da primeira falha, evidências e próxima ação segura.
+  Retries limitados só para falhas transitórias, nunca reiniciar serviços
+  indiscriminadamente como tentativa de diagnóstico.
+- [ ] Manter o modo normal com um comando por etapa e informações suficientes
+  para decidir; detalhes extras ficam em diagnóstico opt-in sem segredos.
+  O flash programático elimina passos manuais repetidos, não as confirmações.
+- [ ] Adicionar testes `ExactMacFilter`, `ExpiredLeaseIsNotCurrentIp`,
+  `UnreadableLogsAreUnknown`, `MalformedOutputIsNotSuccess`,
+  `CredentialsAreRedacted` e `LegacyWrappersUseSharedModules`.
 - [ ] Descobrir candidatos por logs/leases somente leitura; o hostname sozinho
   não identifica placa nem interface. Correlacionar com serial e MACs do Pi.
 - [ ] Usar Ethernet para o primeiro acesso e mantê-la durante mudanças Wi-Fi.
@@ -416,6 +630,88 @@ acesso e aguardar rede, sem iniciar um ciclo infinito de instalação incompleta
   Bats e builds DEB/RPM têm limitações locais já documentadas: preparar ambiente
   Linux apropriado, sem declarar essas verificações concluídas por inferência.
 - [ ] Revisar diff e artefatos antes de liberar a execução em mais dispositivos.
+
+## Tarefa 11: reescrita final e numeração dos guias operacionais
+
+**Dependência:** concluir e homologar as etapas anteriores. Os guias finais
+devem descrever comandos efetivamente implementados e testados, não a interface
+proposta neste plano. Esta tarefa é obrigatória para concluir a implementação.
+
+**Arquivos:** reescrever os guias operacionais em `docs/`, atualizar `README.md`
+como índice e corrigir todas as referências afetadas por renomeação.
+Manter inventário e histórico separados das instruções de instalação.
+
+### Organização final prevista
+
+Cada arquivo numerado representa uma etapa, com título e nome coerentes:
+
+1. `docs/01-pre-requisitos.md`: hardware, host Windows, acessos e ferramentas.
+2. `docs/02-configuracao-privada.md`: `.env`, chave pública e dados por placa.
+3. `docs/03-cms-docker.md`: instalação inicial e validação do CMS existente.
+4. `docs/04-flash-cartao.md`: seleção segura, simulação e gravação verificada.
+5. `docs/05-primeiro-acesso.md`: primeiro boot, Ethernet e identidade da placa.
+6. `docs/06-cadastro-rede-dhcp.md`: MAC Wi-Fi, reserva, validação e aprovação.
+7. `docs/07-validacao-conectividade.md`: Wi-Fi, Internet, CMS e acesso SSH.
+8. `docs/08-player-xibo.md`: deploy, registro, autorização e layout do display.
+9. `docs/09-pi-connect.md`: ativação opcional e vínculo individual à conta.
+10. `docs/10-homologacao.md`: HDMI, atualização, offline, reboot e aceite.
+11. `docs/11-operacao-recuperacao.md`: manutenção, diagnóstico e recuperação.
+12. `docs/12-adicionar-berries.md`: roteiro incremental usando as etapas comuns.
+
+Os nomes são destinos planejados; não criar links para eles enquanto não
+existirem. Preservar `docs/BERRIES.md` como inventário, fora da sequência.
+Arquivar o relato do piloto em `docs/historico/`, com aviso de que não é o
+procedimento atual. Preservar atribuições, fontes e evidências necessárias.
+
+### Dois caminhos explícitos no README
+
+- **Implantar do zero:** seguir as etapas 01 a 10 em ordem, sendo Pi Connect
+  opcional; usar a etapa 11 para operação posterior. Configurar o CMS uma vez.
+- **Adicionar mais Berries:** começar pela etapa 12, que valida o ambiente
+  existente e aponta às etapas comuns necessárias para cada nova placa.
+  Reutilizar CMS e chave global, criar identidade exclusiva e reserva própria,
+  autorizar somente o novo display e homologar sem afetar os anteriores.
+  Não reinstalar banco, redefinir senhas ou refazer configurações globais.
+
+### Conteúdo e verificação obrigatórios
+
+- [ ] Inventariar os guias atuais e mapear cada seção ao seu destino numerado,
+  evitando perder instruções de segurança durante a consolidação.
+- [ ] Reescrever as instruções conforme o comportamento final da CLI e suas
+  versões homologadas. Remover tentativas obsoletas do caminho principal.
+- [ ] Incorporar o manifesto de dependências, matriz de serviços e resultado do
+  preflight na etapa 01. Um operador deve saber exatamente o que instalar no
+  PC, no Pi e o que já precisa existir na infraestrutura.
+- [ ] Explicar na etapa de flash como selecionar hostname, usuário e chave
+  pública pela CLI, sem exigir as mesmas escolhas na GUI do Pi Imager.
+- [ ] Documentar o padrão de hostname com exemplos fictícios e explicar como
+  cadastrar várias públicas, revogar acesso e preparar ZIP sem dados privados.
+- [ ] Testar o pacote de distribuição por allowlist, incluindo os casos
+  `ZipExcludesEnvAndPrivateKeys` e `ZipIncludesApprovedPublicKeys`; inspecionar
+  os membros do ZIP antes de permitir sua distribuição.
+- [ ] Em cada etapa, informar objetivo, pré-requisitos, ambiente de execução,
+  entradas, comandos, saída esperada, confirmação humana, recuperação e
+  critério para avançar. Incluir links para a etapa anterior e a próxima.
+- [ ] Diferenciar claramente PowerShell no PC, comandos no servidor DHCP e
+  comandos no Berry, incluindo qual conta executa cada ação.
+- [ ] Usar variáveis ALL CAPS e marcadores nos exemplos, nunca valores privados.
+  Remeter ao único `.example.env` em vez de manter modelos duplicados.
+- [ ] Manter uma única explicação detalhada por operação. A etapa 12 aponta
+  para ela, sem duplicar procedimentos que possam divergir futuramente.
+- [ ] Atualizar README, links internos, scripts e arquivos de contexto que
+  referenciem nomes antigos; usar a skill de contexto se for necessário
+  reestruturar `AGENTS.md`. Não alterar a skill DHCP externa implicitamente.
+- [ ] Aplicar Markdownlint a todos os Markdown reescritos e verificar links,
+  numeração, comandos e ausência de segredos ou referências quebradas.
+- [ ] Percorrer o caminho do zero em ambiente de homologação e o caminho
+  incremental em uma segunda placa, sem mudanças indevidas no CMS ou na frota.
+  Registrar o que foi executado e o que ainda depende de autorização externa.
+- [ ] Só marcar documentação concluída quando um operador conseguir seguir
+  ambos os caminhos sem precisar consultar o histórico da conversa.
+- [ ] Fazer uma passagem por outro operador ou agente de IA em ambiente limpo,
+  usando somente o repositório, os guias e acessos fornecidos por canal seguro.
+  Registrar lacunas; não pressupor skills pessoais, caminhos deste Windows,
+  senhas conhecidas pelo agente anterior ou ferramentas instaladas à mão.
 
 ## Documentação retroativa e fontes de verdade
 

@@ -11,6 +11,8 @@ Documentação e ferramentas para Raspberry Pis usados em telas de informes da U
 - [Deploy e operação do Xibo Chromium](docs/XIBO-CHROMIUM-BERRY-01.md).
 - [Alterações no player](xiboplayer-chromium/BERRY.md).
 - [Plano da CLI: flash, rede e player](PLANO-FLASH-RASPBERRIES.md).
+- [Spec da CLI](docs/superpowers/specs/2026-10-23-xibo-berry-cli-design.md).
+- [Plano SDD/TDD](docs/superpowers/plans/2026-10-23-xibo-berry-cli-sdd-tdd.md).
 
 A CLI ainda é uma proposta, não uma ferramenta disponível. O plano inclui
 descoberta de interfaces, reserva DHCP Wi-Fi, confirmação antes de aplicar,
